@@ -10,8 +10,6 @@ def analysis(Tframe,Tskip):
 	# frames = np.array()
 
 
-
-
 def synthesis():
 
 
