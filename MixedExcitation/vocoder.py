@@ -176,11 +176,12 @@ def printout(analout):
 def synthesis(frame_size, anal_out):
 	sv_frames = []
 	su_frames = []
+	# voiced bands
 	for f in range(len(anal_out)):
 		Pf = anal_out[f][0]
 		Ams = anal_out[f][1]
 		v_uv = anal_out[f][2]
-		sv, su = np.zeros(frame_size), np.zeros(frame_size)
+		sv = np.zeros(frame_size)
 		Theta = np.zeros((len(Ams),frame_size))
 		for n in range(frame_size):
 			Sum = 0
@@ -205,8 +206,15 @@ def synthesis(frame_size, anal_out):
 				Sum += A*math.cos(Theta[m][n])
 			sv[n] = Sum
 		sv_frames.append(sv)
-	print(sv_frames[0])
-
+	
+	# unvoiced 
+	S = fft(data)
+	for f in range(len(anal_out)):
+		v_uv = anal_out[f][2]
+		su = np.zeros(frame_size)
+		for n in range(frame_size):
+			for m in range(len(v_uv)):
+				print()
 
 
 
