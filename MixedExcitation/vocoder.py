@@ -19,13 +19,13 @@ def analysis(Tframe,Tskip):
 	num_frames = math.floor(data.size/frame_size)
 	frame = np.empty([num_frames,frame_size])
 	window = signal.hamming(frame_size)
-	bigN = frame_size * num_frames
-	bigS = fft(data,bigN)
+	bigN = len(data)
+	bigS = fft(data)
 	#create frames and function w^2(n)*s(n) for autocorrelation
 	for i in range(num_frames):
 		data_index_offset = i * index_skip
 		for j in range(frame_size):
-			frame[i][j] = data[data_index_offset + j] * window[j]*window[j]
+			frame[i][j] = data[data_index_offset + j] #* window[j]*window[j]
 
 	#transform frames
 	fourier_frames = np.empty([num_frames,frame_size],dtype=complex)
@@ -51,18 +51,20 @@ def analysis(Tframe,Tskip):
 	print(pitch_periods)
 
 #pitch refinement and spectral envelop
-
-	for pitch in pitch_periods:
+	refinedPitches = np.empty(len(pitch_periods))
+	for pitchidx in range(len(pitch_periods)):
+		pitch = pitch_periods[pitchidx]
 		Prange = [pitch+0.2*i for i in range(-10,11)]
 		Perrors = np.empty(21)
 		for Pidx in range(len(Prange)):
 			P = Prange[Pidx]
-			indexbands = [(int(np.floor((m-0.5)*(bigN/P))),int(np.floor((m+0.5)*(bigN/P)))) for m in range(1,int(P))]
+			omega = ((2*math.pi)/P)
+			indexbands = [(int(np.floor((m-0.5)*(omega))),int(np.floor((m+0.5)*(omega)))) for m in range(1,int(P))]
 			banderrors = np.empty(int(P))
 			bandAm = np.empty(int(P))
 			banddecisions = np.empty(int(P))
 			#for the following steps, we define E across the band, not the whole signal
-			print("eu width attempt",int(np.floor(bigN/P)))
+			#print("eu width attempt",int(np.floor(bigN/P)))
 			E_u = np.ones(int(np.floor(bigN/P)))
 
 
@@ -84,9 +86,41 @@ def analysis(Tframe,Tskip):
 					bandAm[bandidx] = Am_v
 					banddecisions[bandidx] = 1
 			Perrors[Pidx] = np.sum(banderrors)
-		print("Pitch Estimate:",pitch)
-		print(Prange)
-		print(Perrors)
+		refinedP = Prange[np.argmin(Perrors)]
+		#print("New Pitch Estimate:",refinedP)
+		refinedPitches[pitchidx] = refinedP
+	#refined pitch frequencies
+	analysisout = []
+	for refPidx in range(len(refinedPitches)):
+		refP = refinedPitches[refPidx]
+		#refinedPval,Am list, V/UV as 1/0
+		omega = ((2*math.pi)/refP)
+		refindexbands = [(int(np.floor((m-0.5)*(omega))),int(np.floor((m+0.5)*(omega)))) for m in range(1,int(refP))]
+		refbanderrors = np.empty(int(refP))
+		refbandAm = np.empty(int(refP))
+		refbanddecisions = np.empty(int(refP))
+		E_u = np.ones(int(np.floor(bigN/refP)))
+		for bandidx in range(len(refindexbands)):
+			band = refindexbands[bandidx]
+			E_v = fftshift(signal.hamming(band[1]-band[0]))
+			Am_u = getAm(bigS,E_u,band)
+			Am_v = getAm(bigS,E_v,band)
+			error_u = getAmError(bigS,Am_u,E_u,band)
+			error_v = getAmError(bigS,Am_v,E_v,band)
+			#print("EU",error_u)
+			#print("EV",error_v)
+			if error_u <= error_v:
+				refbanderrors[bandidx] = error_u
+				refbandAm[bandidx] = Am_u
+				refbanddecisions[bandidx] = 0
+			else:
+				refbanderrors[bandidx] = error_v
+				refbandAm[bandidx] = Am_v
+				refbanddecisions[bandidx] = 1
+		analysisout.append((refP,refbandAm,refbanddecisions))
+
+
+#SYNTH HERE
 
 
 ################################################
@@ -107,23 +141,32 @@ def getPsi(bigP,phiFrames):
 	return sum
 
 def getAm(S,E,band):
-	n =len(E)
-	sum = 0
-	for i in range(n):
-		#print("bandstartidx",band[0])
-		#print("i",i)
-		sum += ((S[band[0]+i]*np.conj(E[i]))/(np.absolute(E[i])**2))
-	return sum
+	# Epad = np.append(np.zeros(band[0]),np.array(E))
+	# Epad = np.append(Epad,np.zeros(len(S)-band[1]+1))
+	sumnum = 0
+	Econj = np.conj(E)
+	denom = np.absolute(E)**2
+	sumdenom = np.sum(denom)
+	for i in range(band[1]-band[0]):
+		sumnum += S[band[0]+i]*Econj[i]
+	A = sumnum/sumdenom
+	return A
 
 def getAmError(S,A,E,band):
-	n = len(E)
 	sum = 0
-	for i in range(n):
-		#print(band[0]+i)
-		#print("Signal",np.absolute(S[band[0]+i]))
-		#print("Guess",(np.absolute(A))*np.absolute(E[i]))
-		sum += (((np.absolute(S[band[0]+i])-((np.absolute(A))*np.absolute(E[i])))**2)/(2*math.pi))
-	return sum
+	AE = A*E
+	diff = 0
+	for i in range(band[1]-band[0]):
+		diff = S[band[0]+i] - AE[i]
+		sum += np.absolute(diff)**2
+	err = sum/(2*math.pi)
+	return err
+
+def printout(analout):
+	for a in range(len(analout)):
+		print("frame:",a,"P estimate",analout[a][0])
+		print("Am",analout[a][1])
+		print("Voiced/Unvoiced",[int(i) for i in analout[a][2]])
 
 analysis(.025,.01)
 
