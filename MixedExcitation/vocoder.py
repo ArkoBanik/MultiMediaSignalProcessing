@@ -9,6 +9,7 @@ fs, data = wavfile.read('s5.wav')
 #print(fs)
 fp = 1/fs
 
+
 def analysis(Tframe,Tskip):
 	# Read your input audio file. Extract frames of duration Tf rame seconds at every Tskip seconds. Use
 	#Hamming window to scale the frames. Compute FFT of windowed frames. Get a rough integer estimate for
@@ -118,6 +119,7 @@ def analysis(Tframe,Tskip):
 				refbandAm[bandidx] = Am_v
 				refbanddecisions[bandidx] = 1
 		analysisout.append((refP,refbandAm,refbanddecisions))
+	return analysisout,frame_size
 
 
 #SYNTH HERE
@@ -168,6 +170,49 @@ def printout(analout):
 		print("Am",analout[a][1])
 		print("Voiced/Unvoiced",[int(i) for i in analout[a][2]])
 
-analysis(.025,.01)
 
-# def synthesis():
+
+
+def synthesis(frame_size, anal_out):
+	sv_frames = []
+	su_frames = []
+	for f in range(len(anal_out)):
+		Pf = anal_out[f][0]
+		Ams = anal_out[f][1]
+		v_uv = anal_out[f][2]
+		sv, su = np.zeros(frame_size), np.zeros(frame_size)
+		Theta = np.zeros((len(Ams),frame_size))
+		for n in range(frame_size):
+			Sum = 0
+			for m in range(len(Ams)):
+				theta_local = 0
+				A = 0
+				if(n != 0):
+					theta_local = Theta[m][n-1]
+					omega = 2 *math.pi / Pf
+					if(f < len(anal_out) -1):
+						Pf1 = anal_out[f+1][0]
+						omega = (f+1 - (n/frame_size))* (2 *math.pi / Pf) + ((n/frame_size)-f)*(2*math.pi/Pf1)
+					Theta[m][n] = theta_local + m*omega
+					if(v_uv[m]):
+						A = Ams[m]
+						if(f < len(anal_out)-1):
+							A1 = 0
+							if( m < len(anal_out[f+1][1])):
+								if(anal_out[f+1][2][m]):
+									A1 = anal_out[f+1][1][m]
+							A = (f+1 - (n/frame_size))*Ams[m] + ((n/frame_size)-f)*A1
+				Sum += A*math.cos(Theta[m][n])
+			sv[n] = Sum
+		sv_frames.append(sv)
+	print(sv_frames[0])
+
+
+
+
+
+
+
+
+out,frame_size = analysis(.025,.01)
+synthesis(frame_size,out)
