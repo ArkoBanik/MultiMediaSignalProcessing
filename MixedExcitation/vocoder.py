@@ -4,14 +4,17 @@ from scipy.io import wavfile
 import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.fftpack import fft, ifft,fftshift
+import sounddevice as sd
 
 fs, datafile = wavfile.read('s5.wav')
 fp = 1/fs
 
 
 
-plt.subplot(211)
+plt.subplot(411)
 plt.plot(datafile)
+plt.subplot(412)
+plt.plot(fftshift(fft(datafile)))
 dm = np.mean(datafile)
 print(dm)
 data = datafile - dm
@@ -82,7 +85,7 @@ def analysis(Tframe,Tskip):
 				band = indexbands[bandidx]
 				bw =int(np.floor(band[1] - band[0]))
 				E_u = np.ones(bw)
-				E_v = fftshift(fft(signal.hamming(bw)))
+				E_v = fft(signal.hamming(bw))
 				Am_u = getAm(fourier_frames[pitchidx],E_u,band)
 				Am_v = getAm(fourier_frames[pitchidx],E_v,band)
 				error_u = getAmError(fourier_frames[pitchidx],Am_u,E_u,band)
@@ -116,7 +119,7 @@ def analysis(Tframe,Tskip):
 			band = refindexbands[bandidx]
 			bw = int(np.floor(band[1]-band[0]))
 			E_u = np.ones(bw)
-			E_v = fftshift(fft((signal.hamming(bw))))
+			E_v = fft((signal.hamming(bw)))
 			Am_u = getAm(fourier_frames[refPidx],E_u,band)
 			Am_v = getAm(fourier_frames[refPidx],E_v,band)
 			error_u = getAmError(fourier_frames[refPidx],Am_u,E_u,band)
@@ -196,7 +199,7 @@ def synthesis(anal_out,fourier_frames):
 		v_uv = anal_out[f][2]
 		bands = anal_out[f][3]
 		# find UV regions
-		U = np.zeros(1024)
+		U = [(0 + 0j) for x in range(1024)]
 		S = fourier_frames[f]
 		regions = []
 		for m in range(len(bands)):
@@ -209,7 +212,7 @@ def synthesis(anal_out,fourier_frames):
 				for i in range(a,b):
 					U[i] = Gaus[k]
 					k+=1
-		uf = ifft(U,1024)
+		uf = np.real(ifft(U,1024))
 		ufs.append(uf)
 
 	for f in range(len(anal_out)):
@@ -228,13 +231,15 @@ def synthesis(anal_out,fourier_frames):
 	reconstructed = np.real(np.add(s_u,sv))
 	reconstructed = reconstructed*denom
 	reconstructed = reconstructed + dm
-
-	plt.subplot(212)
+	#sd.play(reconstructed,fs)
+	plt.subplot(413)
 	plt.plot(reconstructed)
+	plt.subplot(414)
+	plt.plot(fftshift(fft(reconstructed)))
 	plt.show()
 	print(len(reconstructed))
 
-	#wavfile.write('testout.wav',fs,reconstructed)
+	wavfile.write('testout.wav',fs,reconstructed)
 
 ################################################
 def autocorr(x):
