@@ -6,7 +6,6 @@ from scipy import signal
 from scipy.fftpack import fft, ifft,fftshift
 
 fs, data = wavfile.read('s5.wav')
-#print(fs)
 fp = 1/fs
 
 
@@ -17,21 +16,23 @@ def analysis(Tframe,Tskip):
 
 	index_skip = round(Tskip * fs)
 	frame_size = round(Tframe * fs)
-	num_frames = math.floor(data.size/frame_size)
+	num_frames = math.floor(data.size/index_skip)
 	frame = np.empty([num_frames,frame_size])
 	window = signal.hamming(frame_size)
-	bigN = len(data)
-	bigS = fft(data)
+	print(len(data))
 	#create frames and function w^2(n)*s(n) for autocorrelation
 	for i in range(num_frames):
 		data_index_offset = i * index_skip
 		for j in range(frame_size):
-			frame[i][j] = data[data_index_offset + j] #* window[j]*window[j]
+			if ((data_index_offset +j)>=len(data)):
+				frame[i][j] = 0
+			else:
+				frame[i][j] = data[data_index_offset + j] * window[j]*window[j]
 
 	#transform frames
-	fourier_frames = np.empty([num_frames,frame_size],dtype=complex)
+	fourier_frames = np.empty([num_frames,1024],dtype=complex)
 	for i in range(num_frames):
-		fourier_frames[i] = fft(frame[i])
+		fourier_frames[i] = fft(frame[i],1024)
 
 	pitch_periods = []
 
@@ -47,9 +48,8 @@ def analysis(Tframe,Tskip):
 		pp= (start_sample + np.argmax(corr[start_sample:end_sample]))
 		pp_t = pp/fs
 		pitch_periods.append(pp)
-	plt.show()
 	# process_frame(frame[20])
-	print(pitch_periods)
+	#print(pitch_periods)
 
 #pitch refinement and spectral envelop
 	refinedPitches = np.empty(len(pitch_periods))
@@ -59,23 +59,22 @@ def analysis(Tframe,Tskip):
 		Perrors = np.empty(21)
 		for Pidx in range(len(Prange)):
 			P = Prange[Pidx]
-			omega = ((2*math.pi)/P)
+			omega = ((1024)/P)
 			indexbands = [(int(np.floor((m-0.5)*(omega))),int(np.floor((m+0.5)*(omega)))) for m in range(1,int(P))]
-			banderrors = np.empty(int(P))
-			bandAm = np.empty(int(P))
-			banddecisions = np.empty(int(P))
+			banderrors = np.empty(len(indexbands))
+			bandAm = np.empty(len(indexbands))
+			banddecisions = np.empty(len(indexbands))
 			#for the following steps, we define E across the band, not the whole signal
-			#print("eu width attempt",int(np.floor(bigN/P)))
-			E_u = np.ones(int(np.floor(bigN/P)))
-
 
 			for bandidx in range(len(indexbands)):
 				band = indexbands[bandidx]
-				E_v = fftshift(signal.hamming(band[1]-band[0]))
-				Am_u = getAm(bigS,E_u,band)
-				Am_v = getAm(bigS,E_v,band)
-				error_u = getAmError(bigS,Am_u,E_u,band)
-				error_v = getAmError(bigS,Am_v,E_v,band)
+				bw =int(np.floor(band[1] - band[0]))
+				E_u = np.ones(bw)
+				E_v = fftshift(fft(signal.hamming(bw)))
+				Am_u = getAm(fourier_frames[pitchidx],E_u,band)
+				Am_v = getAm(fourier_frames[pitchidx],E_v,band)
+				error_u = getAmError(fourier_frames[pitchidx],Am_u,E_u,band)
+				error_v = getAmError(fourier_frames[pitchidx],Am_v,E_v,band)
 				#print("EU",error_u)
 				#print("EV",error_v)
 				if error_u <= error_v:
@@ -90,24 +89,26 @@ def analysis(Tframe,Tskip):
 		refinedP = Prange[np.argmin(Perrors)]
 		#print("New Pitch Estimate:",refinedP)
 		refinedPitches[pitchidx] = refinedP
-	#refined pitch frequencies
+
+#refined pitch frequencies
 	analysisout = []
 	for refPidx in range(len(refinedPitches)):
 		refP = refinedPitches[refPidx]
 		#refinedPval,Am list, V/UV as 1/0
-		omega = ((2*math.pi)/refP)
+		omega = ((1024)/refP)
 		refindexbands = [(int(np.floor((m-0.5)*(omega))),int(np.floor((m+0.5)*(omega)))) for m in range(1,int(refP))]
-		refbanderrors = np.empty(int(refP))
-		refbandAm = np.empty(int(refP))
-		refbanddecisions = np.empty(int(refP))
-		E_u = np.ones(int(np.floor(bigN/refP)))
+		refbanderrors = np.empty(len(refindexbands))
+		refbandAm = np.empty(len(refindexbands))
+		refbanddecisions = np.empty(len(refindexbands))
 		for bandidx in range(len(refindexbands)):
 			band = refindexbands[bandidx]
-			E_v = fftshift(signal.hamming(band[1]-band[0]))
-			Am_u = getAm(bigS,E_u,band)
-			Am_v = getAm(bigS,E_v,band)
-			error_u = getAmError(bigS,Am_u,E_u,band)
-			error_v = getAmError(bigS,Am_v,E_v,band)
+			bw = int(np.floor(band[1]-band[0]))
+			E_u = np.ones(bw)
+			E_v = fftshift(fft((signal.hamming(bw))))
+			Am_u = getAm(fourier_frames[refPidx],E_u,band)
+			Am_v = getAm(fourier_frames[refPidx],E_v,band)
+			error_u = getAmError(fourier_frames[refPidx],Am_u,E_u,band)
+			error_v = getAmError(fourier_frames[refPidx],Am_v,E_v,band)
 			#print("EU",error_u)
 			#print("EV",error_v)
 			if error_u <= error_v:
@@ -118,12 +119,99 @@ def analysis(Tframe,Tskip):
 				refbanderrors[bandidx] = error_v
 				refbandAm[bandidx] = Am_v
 				refbanddecisions[bandidx] = 1
-		analysisout.append((refP,refbandAm,refbanddecisions))
-	return analysisout,frame_size
+		analysisout.append((refP,refbandAm,refbanddecisions,refindexbands))
+	return analysisout,fourier_frames
 
 
-#SYNTH HERE
+def synthesis(anal_out,fourier_frames):
+	sv = []
+	K = int(.01*fs)
+	for f in range(len(anal_out)):
+		Pf = anal_out[f][0]
+		Ams = anal_out[f][1]
+		v_uv = anal_out[f][2]
+		Theta = np.zeros((len(Ams),K*len(anal_out)))
+		for nidx in range(int(K)):
+			n = np.floor(f*K+nidx)
+			n = int(n)
+			## Calculate omega
+			#if last frame, omega = 2pi/Pf
+			if (f == (len(anal_out)-1)):
+				omega = ((2*math.pi)/Pf)
+			else:
+				Pf1 = anal_out[f+1][0]
+				omega = (((f + 1 - (n/K))*((2*math.pi)/Pf)) + (((n/K) - f)*((2*math.pi)/Pf1)))
 
+
+			sum = 0
+			for m in range(len(Ams)):
+				## Calculate A
+				# if band m unvoiced, Amf = 0
+				Amf = (Ams[m] if v_uv[m] else 0)
+				# if last frame, Am[n] = Amf
+				if (f == (len(anal_out)-1)):
+					A = Amf
+				else:
+					#if band m at frame f+1 unvoiced, Amf1 = 0
+					Amf1 = (anal_out[f+1][1][m] if (m < len(anal_out[f+1][1]) and anal_out[f+1][2][m]) else 0)
+					A = (((f + 1 - (n/K))*(Amf)) + (((n/K) - f)*(Amf1)))
+
+				## Calculate Theta
+				if (n == 0):
+					thetaprev = 0
+				else:
+					thetaprev = Theta[m][nidx-1]
+				newtheta = thetaprev + m*omega
+				Theta[m][nidx] = newtheta
+
+				# Calculate s_v[n]
+				sum += A*math.cos(newtheta)
+			sv.append(sum)
+
+
+# unvoiced
+	s_u = []
+	ufs = []
+	for f in range(len(anal_out)):
+		v_uv = anal_out[f][2]
+		bands = anal_out[f][3]
+		# find UV regions
+		U = np.zeros(1024)
+		S = fourier_frames[f]
+		regions = []
+		for m in range(len(bands)):
+			if(v_uv[m] == 0):
+				(a,b) = bands[m]
+				sig = calculate_sig(S,a,b)
+				Gaus = np.random.normal(0,0.5*sig,(b-a)) + 1j*np.random.normal(0,0.5*sig,(b-a))
+				regions.append((a,b))
+				k = 0
+				for i in range(a,b):
+					U[i] = Gaus[k]
+					k+=1
+		uf = ifft(U,1024)
+		ufs.append(uf)
+
+	for f in range(len(anal_out)):
+		su = np.zeros(K)
+		for nidx in range(K):
+			n = nidx + f*K
+			if(f == (len(anal_out)-1)):
+				second = 0
+			else:
+				second =  (((n/K) - f)*ufs[f+1][(n - ((f+1)*K))])
+
+			su[nidx] = (((f + 1 - (n/K))*ufs[f][(n-f*K)]) + second)
+		s_u.extend(su)
+	U_n = np.empty(1024)
+	#print("SU",s_u)
+	#print("DIMS OF SU",len(s_u))
+
+
+	##elementwise add
+	reconstructed = np.real(np.add(s_u,sv))
+	print(len(reconstructed))
+	wavfile.write('testout.wav',fs,reconstructed)
 
 ################################################
 def autocorr(x):
@@ -150,7 +238,7 @@ def getAm(S,E,band):
 	denom = np.absolute(E)**2
 	sumdenom = np.sum(denom)
 	for i in range(band[1]-band[0]):
-		sumnum += S[band[0]+i]*Econj[i]
+		sumnum += S[band[0] + i]*Econj[i]
 	A = sumnum/sumdenom
 	return A
 
@@ -159,68 +247,19 @@ def getAmError(S,A,E,band):
 	AE = A*E
 	diff = 0
 	for i in range(band[1]-band[0]):
-		diff = S[band[0]+i] - AE[i]
+		diff = S[band[0] + i] - AE[i]
 		sum += np.absolute(diff)**2
 	err = sum/(2*math.pi)
 	return err
 
-def printout(analout):
-	for a in range(len(analout)):
-		print("frame:",a,"P estimate",analout[a][0])
-		print("Am",analout[a][1])
-		print("Voiced/Unvoiced",[int(i) for i in analout[a][2]])
+
+def calculate_sig(S,a,b):
+	Sum = 0
+	for i in range(a,b):
+		Sum += np.absolute(S[i])**2
+	Sum = Sum * (1/(b-a))
+	return Sum
 
 
-
-
-def synthesis(frame_size, anal_out):
-	sv_frames = []
-	su_frames = []
-	# voiced bands
-	for f in range(len(anal_out)):
-		Pf = anal_out[f][0]
-		Ams = anal_out[f][1]
-		v_uv = anal_out[f][2]
-		sv = np.zeros(frame_size)
-		Theta = np.zeros((len(Ams),frame_size))
-		for n in range(frame_size):
-			Sum = 0
-			for m in range(len(Ams)):
-				theta_local = 0
-				A = 0
-				if(n != 0):
-					theta_local = Theta[m][n-1]
-					omega = 2 *math.pi / Pf
-					if(f < len(anal_out) -1):
-						Pf1 = anal_out[f+1][0]
-						omega = (f+1 - (n/frame_size))* (2 *math.pi / Pf) + ((n/frame_size)-f)*(2*math.pi/Pf1)
-					Theta[m][n] = theta_local + m*omega
-					if(v_uv[m]):
-						A = Ams[m]
-						if(f < len(anal_out)-1):
-							A1 = 0
-							if( m < len(anal_out[f+1][1])):
-								if(anal_out[f+1][2][m]):
-									A1 = anal_out[f+1][1][m]
-							A = (f+1 - (n/frame_size))*Ams[m] + ((n/frame_size)-f)*A1
-				Sum += A*math.cos(Theta[m][n])
-			sv[n] = Sum
-		sv_frames.append(sv)
-	
-	# unvoiced 
-	S = fft(data)
-	for f in range(len(anal_out)):
-		v_uv = anal_out[f][2]
-		su = np.zeros(frame_size)
-		for n in range(frame_size):
-			for m in range(len(v_uv)):
-				print()
-
-
-
-
-
-
-
-out,frame_size = analysis(.025,.01)
-synthesis(frame_size,out)
+out,fourier_frames = analysis(.025,.01)
+synthesis(out,fourier_frames)
