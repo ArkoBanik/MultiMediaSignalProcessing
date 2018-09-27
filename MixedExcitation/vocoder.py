@@ -5,9 +5,20 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.fftpack import fft, ifft,fftshift
 
-fs, data = wavfile.read('s5.wav')
+fs, datafile = wavfile.read('s5.wav')
 fp = 1/fs
 
+
+
+plt.subplot(211)
+plt.plot(datafile)
+dm = np.mean(datafile)
+print(dm)
+data = datafile - dm
+sqrs = [i**2 for i in data]
+denom = math.sqrt(np.sum(sqrs))
+print(denom)
+data = data/denom
 
 def analysis(Tframe,Tskip):
 	# Read your input audio file. Extract frames of duration Tf rame seconds at every Tskip seconds. Use
@@ -19,7 +30,8 @@ def analysis(Tframe,Tskip):
 	num_frames = math.floor(data.size/index_skip)
 	frame = np.empty([num_frames,frame_size])
 	window = signal.hamming(frame_size)
-	print(len(data))
+	print(len(datafile))
+
 	#create frames and function w^2(n)*s(n) for autocorrelation
 	for i in range(num_frames):
 		data_index_offset = i * index_skip
@@ -120,8 +132,18 @@ def analysis(Tframe,Tskip):
 				refbandAm[bandidx] = Am_v
 				refbanddecisions[bandidx] = 1
 		analysisout.append((refP,refbandAm,refbanddecisions,refindexbands))
-	return analysisout,fourier_frames
 
+	# amconcat = []
+	# for f in range(300):
+	# 	for i in range(len(analysisout[f][1])):
+	# 		bandwidth = analysisout[f][3][i][1]-analysisout[f][3][i][0]
+	# 		for l in range(bandwidth):
+	# 			amconcat.append(analysisout[f][1][i])
+	#
+	# print("AMCONCATLEN",len(amconcat))
+	# plt.subplot(312)
+	# plt.plot(amconcat)
+	return analysisout,fourier_frames
 
 def synthesis(anal_out,fourier_frames):
 	sv = []
@@ -141,8 +163,6 @@ def synthesis(anal_out,fourier_frames):
 			else:
 				Pf1 = anal_out[f+1][0]
 				omega = (((f + 1 - (n/K))*((2*math.pi)/Pf)) + (((n/K) - f)*((2*math.pi)/Pf1)))
-
-
 			sum = 0
 			for m in range(len(Ams)):
 				## Calculate A
@@ -203,15 +223,18 @@ def synthesis(anal_out,fourier_frames):
 
 			su[nidx] = (((f + 1 - (n/K))*ufs[f][(n-f*K)]) + second)
 		s_u.extend(su)
-	U_n = np.empty(1024)
-	#print("SU",s_u)
-	#print("DIMS OF SU",len(s_u))
-
 
 	##elementwise add
 	reconstructed = np.real(np.add(s_u,sv))
+	reconstructed = reconstructed*denom
+	reconstructed = reconstructed + dm
+
+	plt.subplot(212)
+	plt.plot(reconstructed)
+	plt.show()
 	print(len(reconstructed))
-	wavfile.write('testout.wav',fs,reconstructed)
+
+	#wavfile.write('testout.wav',fs,reconstructed)
 
 ################################################
 def autocorr(x):
