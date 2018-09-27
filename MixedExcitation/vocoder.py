@@ -83,9 +83,9 @@ def analysis(Tframe,Tskip):
 
 			for bandidx in range(len(indexbands)):
 				band = indexbands[bandidx]
-				bw =int(np.floor(band[1] - band[0]))
-				E_u = np.ones(bw)
-				E_v = fft(signal.hamming(bw))
+				bw = int(np.floor(band[1]-band[0]))
+				E_u = np.ones(1024)
+				E_v = (fft(signal.hamming(1024),1024))
 				Am_u = getAm(fourier_frames[pitchidx],E_u,band)
 				Am_v = getAm(fourier_frames[pitchidx],E_v,band)
 				error_u = getAmError(fourier_frames[pitchidx],Am_u,E_u,band)
@@ -118,8 +118,8 @@ def analysis(Tframe,Tskip):
 		for bandidx in range(len(refindexbands)):
 			band = refindexbands[bandidx]
 			bw = int(np.floor(band[1]-band[0]))
-			E_u = np.ones(bw)
-			E_v = fft((signal.hamming(bw)))
+			E_u = np.ones(1024)
+			E_v = (fft((signal.hamming(1024)),1024))
 			Am_u = getAm(fourier_frames[refPidx],E_u,band)
 			Am_v = getAm(fourier_frames[refPidx],E_v,band)
 			error_u = getAmError(fourier_frames[refPidx],Am_u,E_u,band)
@@ -149,6 +149,7 @@ def analysis(Tframe,Tskip):
 	return analysisout,fourier_frames
 
 def synthesis(anal_out,fourier_frames):
+# voiced
 	sv = []
 	K = int(.01*fs)
 	for f in range(len(anal_out)):
@@ -190,7 +191,6 @@ def synthesis(anal_out,fourier_frames):
 				# Calculate s_v[n]
 				sum += A*math.cos(newtheta)
 			sv.append(sum)
-
 
 # unvoiced
 	s_u = []
@@ -240,7 +240,9 @@ def synthesis(anal_out,fourier_frames):
 	print(len(reconstructed))
 
 	wavfile.write('testout.wav',fs,reconstructed)
-
+	return reconstructed
+################################################
+## HELPERS ##
 ################################################
 def autocorr(x):
     result = np.correlate(x, x, mode='full')
@@ -259,27 +261,34 @@ def getPsi(bigP,phiFrames):
 	return sum
 
 def getAm(S,E,band):
-	# Epad = np.append(np.zeros(band[0]),np.array(E))
-	# Epad = np.append(Epad,np.zeros(len(S)-band[1]+1))
+	center_idx = len(E)//2
+	start_idx = center_idx - (band[1]-band[0])//2
 	sumnum = 0
 	Econj = np.conj(E)
-	denom = np.absolute(E)**2
-	sumdenom = np.sum(denom)
-	for i in range(band[1]-band[0]):
-		sumnum += S[band[0] + i]*Econj[i]
+	# denom = np.absolute(E)**2
+	# sumdenom = np.sum(denom)
+	sumdenom = 0
+	j = 0
+	for i in range(band[0], band[1]):
+		sumnum += S[i]*Econj[start_idx +j]
+		sumdenom += E[start_idx +j]**2
+		j += 1
 	A = sumnum/sumdenom
 	return A
 
 def getAmError(S,A,E,band):
-	sum = 0
+	center_idx = len(E)//2
+	start_idx = center_idx - (band[1]-band[0])//2
+	Sum = 0
 	AE = A*E
 	diff = 0
-	for i in range(band[1]-band[0]):
-		diff = S[band[0] + i] - AE[i]
-		sum += np.absolute(diff)**2
-	err = sum/(2*math.pi)
+	j = 0
+	for i in range(band[0], band[1]):
+		diff = S[i] - AE[start_idx +j]
+		Sum += np.absolute(diff)**2
+		j+=1
+	err = Sum/(2*math.pi)
 	return err
-
 
 def calculate_sig(S,a,b):
 	Sum = 0
@@ -288,6 +297,11 @@ def calculate_sig(S,a,b):
 	Sum = Sum * (1/(b-a))
 	return Sum
 
-
+######################################################3
 out,fourier_frames = analysis(.025,.01)
+print(len(out))
+print(out[0][1])
+# pvals = [out[i][1] for i in range(len(out))]
+# plt.plot(pvals)
+# plt.show()
 synthesis(out,fourier_frames)
