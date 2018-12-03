@@ -1,5 +1,19 @@
 function y = bilinearInterp(u,v,image)
-f = floor(u) -u;
-e = floor(v) -v;
-y = (1-f)*(1-e)*image(int16(u),int16(v)) + f*(1-e)*image(int16(u)+1,int16(v)) +e*(1-f)*image(int16(u),int16(v)+1) +e*f*image(int16(u)+1,int16(v)+1);
+[max_v, max_u] = size(image);
+f = u -floor(u);
+e = v -floor(v);
+y = 0;
+if floor(u) <= max_u & floor(v) <= max_v
+    y = (1-f)*(1-e)*image(floor(v),floor(u)) ;
+    if floor(u)+1 <= max_u
+    y= y+ f*(1-e)*image(floor(v),floor(u)+1) ;
+    end
+    if floor(v)+1 <= max_v
+    y = y +e*(1-f)*image(floor(v)+1,floor(u));
+    end
+    if floor(u)+1 <= max_u & floor(v)+1 <= max_v
+    y = y + e*f*image(floor(v)+1,floor(u)+1);
+    end
+end
+
 end
