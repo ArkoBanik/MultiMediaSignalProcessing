@@ -99,3 +99,24 @@ imwrite(Out,out_image_name)
 
 figure()
 imshow(Out)
+%% Test Extra Credit with Adi's face
+load('ECE417_MP4_AV_Data.mat');
+image = rgb2gray(imread('adi_mouth.jpg'));
+file = 'adiMesh.txt';
+test_point = 1800;
+delta_w  = av_train.visual(1,test_point);
+delta_h1 = av_train.visual(2,test_point);
+delta_h2 = av_train.visual(3,test_point);
+fScale = 1.5;
+
+Out = mouth_warp_ec(delta_w, delta_h1,delta_h2, fScale,image,file);
+
+% out_image_name = 'test.jpg';
+% destinationFolder = './out_images';
+% fullDestinationFileName = fullfile(destinationFolder, out_image_name);
+% 
+% imwrite(Out, fullDestinationFileName);
+% imwrite(Out,out_image_name)
+
+figure()
+imshow(Out)
