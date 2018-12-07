@@ -73,6 +73,24 @@ out_image_name = strcat('test_', sprintf('%04d',a),'.jpg');
 fullDestinationFileName = fullfile(destinationFolder, out_image_name);
 imwrite(Out, fullDestinationFileName);
 
-  
+%% Extra Credit New face w Teeth
+
+[f, num_frames] = size(results);
+image = rgb2gray(imread('adi_mouth.jpg'));
+file = 'adiMesh.txt';
+fScale = 1.5;
+destinationFolder = './out_images_ec';
+
+for i=101:200%num_frames
+    delta_w  = results(1,i); 
+    delta_h1 = results(2,i);
+    delta_h2 = results(3,i);
+    Out = mouth_warp_ec2(delta_w, delta_h1,delta_h2, fScale,image,file);
+    
+    out_image_name = strcat('test_', sprintf('%04d',i),'.jpg');    
+    fullDestinationFileName = fullfile(destinationFolder, out_image_name);
+    imwrite(Out, fullDestinationFileName);
+end 
+
   
     
